@@ -82,13 +82,20 @@ function inspectColumn(column) {
     `;
     query(sql).then(rows => {
         var stats = rows[0];
-        window.sidepanel.innerHTML += `
-        <p><span style="display: block; font-size: 0.65em">Min:</span>${stats.min.toFixed(3)}<br>
-        <span style="display: block; font-size: 0.65em">Max:</span>${stats.max.toFixed(3)}<br>
-        <span style="display: block; font-size: 0.65em">Mean:</span>${stats.mean.toFixed(3)}<br>
-        <span style="display: block; font-size: 0.65em">Stdev:</span>${stats.stdev.toFixed(3)}<br>
-        <span style="display: block; font-size: 0.65em">Unique values:</span>${stats.uniques}</p>
-        `;
+        if (stats.max == 0.0 && stats.min == 0.0 && stats.mean == 0.0 && stats.stdev == 0.0) {
+            // Only show uniques
+            window.sidepanel.innerHTML += `
+            <p><span style="display: block; font-size: 0.65em">Unique values:</span>${stats.uniques}</p>
+            `;
+        } else {
+            window.sidepanel.innerHTML += `
+            <p><span style="display: block; font-size: 0.65em">Min:</span>${stats.min.toFixed(3)}<br>
+            <span style="display: block; font-size: 0.65em">Max:</span>${stats.max.toFixed(3)}<br>
+            <span style="display: block; font-size: 0.65em">Mean:</span>${stats.mean.toFixed(3)}<br>
+            <span style="display: block; font-size: 0.65em">Stdev:</span>${stats.stdev.toFixed(3)}<br>
+            <span style="display: block; font-size: 0.65em">Unique values:</span>${stats.uniques}</p>
+            `;
+        }
         // Outlier cutoff is 3xstdev
         var cutoff = 3 * stats.stdev;
         var lower = stats.mean - cutoff;
