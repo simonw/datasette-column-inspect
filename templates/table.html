@@ -10,6 +10,13 @@ var table_path = "/{{ database|quote_plus }}/{{ table|quote_plus }}";
 
 var label_columns = [];
 
+var info_svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" height="20" width="20" version="1.0">
+  <g fill="#4b4b4b">
+    <path d="M80 15a65 65 0 100 130 65 65 0 000-130zm0 10a55 55 0 110 110 55 55 0 010-110z"/>
+    <path d="M90 51a11 11 0 11-23 0 11 11 0 1123 0zM91 111c0 3 1 3 4 4h5v5H61v-5h5c4 0 5-2 5-4V80c0-5-7-4-11-4v-5l31-1"/>
+  </g>
+</svg>`;
+
 window.addEventListener("load", () => {
     var table = document.getElementsByTagName("table")[0];
     // Wrap table in <div><div>TABLE</div><div>SIDEBAR</div></div>
@@ -32,9 +39,7 @@ window.addEventListener("load", () => {
 
     // Make the ths clickable
     Array.from(table.getElementsByTagName("th")).forEach(th => {
-        th.style.backgroundColor = '#ccc';
-        th.style.padding = '10px 8px';
-        th.style.cursor = 'pointer';
+        // th.style.backgroundColor = '#ccc';
         // Figure out first two columns for display later
         var a = th.getElementsByTagName("a")[0];
         if (!a) {
@@ -45,7 +50,13 @@ window.addEventListener("load", () => {
         if (column != "rowid" && label_columns.length < 1) {
             label_columns.push(column);
         }
-        th.addEventListener("click", () => {
+        th.style.whiteSpace = 'nowrap';
+        th.innerHTML += '&nbsp;' + info_svg;
+        var svg = th.getElementsByTagName("svg")[0];
+        svg.style.cursor = 'pointer';
+        svg.style.position = 'relative';
+        svg.style.top = '3px';
+        svg.addEventListener("click", () => {
             inspectColumn(column);
         });
     });
