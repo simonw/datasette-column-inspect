@@ -1,81 +1,13 @@
 {% extends "default:table.html" %}
 
 {% block extra_head %}
-<script type="module">
-import { html, Component, render, useState, useEffect } from 'https://unpkg.com/htm/preact/standalone.module.js'
-
-
-const SEARCH = 'https://api.github.com/search/repositories';
-
-
-export default function Sidebar(props) {
-	const [items, setItems] = useState([]);
-
-    if (props.column) {
-        console.log("column: ", props.column)
-        useEffect(() => {
-            fetch(`${SEARCH}?q=${props.column}`)
-                .then(res => res.json())
-                .then(data => setItems((data && data.items) || []));
-        }, []);
-    }
-
-	return (
-		html`<div>
-			<div class="list">
-				${items.map(result => (
-					Result(result)
-				))}
-			</div>
-		</div>`
-	);
-}
-
-const Result = result => (
-	html`<div class="repl-list-item">
-		<div>
-			<a
-				href=${result.html_url}
-				target="_blank"
-				rel="noopener noreferrer"
-				class="repl-link"
-			>
-				${result.full_name}
-			</a>
-			${" - "}
-			<strong>${result.stargazers_count}</strong>
-		</div>
-		<p>${result.description}</p>
-	</div>`
-);
-
-
-class App extends Component {
-    addTodo() {
-        const { todos = [] } = this.state;
-        this.setState({ todos: todos.concat(`Item ${todos.length}`) });
-    }
-    render({ page }, { todos = [] }) {
-        return html`
-            <div class="app">
-            <${Header} name="ToDo's (${page})" />
-            <ul>
-                ${todos.map(todo => html`
-                    <li>${todo}</li>
-                `)}
-            </ul>
-            <button onClick=${() => this.addTodo()}>Add Todo</button>
-            <${Footer}>footer content here<//>
-            </div>
-        `;
-    }
-}
-
-const Header = ({ name }) => html`<h1>${name} List</h1>`;
-
-const Footer = props => html`<footer ...${props} />`;
+<script>
 
 var sidepanel = null;
+var table = "{{ table }}";
+var base_path = "/{{ database|quote_plus }}";
+
+var label_columns = [];
 
 window.addEventListener("load", () => {
     var table = document.getElementsByTagName("table")[0];
@@ -87,7 +19,9 @@ window.addEventListener("load", () => {
     tableDiv.style.flex = '3 0 0';
     tableDiv.style.overflow = 'auto';
     window.sidepanel = document.createElement('div');
+    window.sidepanel.style.maxWidth='300px';
     window.sidepanel.style.flex = '1 0 0';
+    window.sidepanel.style.marginTop = '-1em';
     window.sidepanel.style.boxShadow = '0 30px 40px rgba(0,0,0,.2)';
     window.sidepanel.style.padding = '1em';
     window.sidepanel.style.border = '2px solid #ccc';
@@ -97,21 +31,97 @@ window.addEventListener("load", () => {
 
     // Make the ths clickable
     Array.from(table.getElementsByTagName("th")).forEach(th => {
-        th.style.backgroundColor = 'orange';
+        th.style.backgroundColor = '#ccc';
+        th.style.padding = '10px 8px';
         th.style.cursor = 'pointer';
+        // Figure out first two columns for display later
+        var a = th.getElementsByTagName("a")[0];
+        if (!a) {
+            // Link column
+            return true;
+        }
+        var column = a.href.split("=")[1];
+        if (column != "rowid" && label_columns.length < 1) {
+            label_columns.push(column);
+        }
         th.addEventListener("click", () => {
-            var a = th.getElementsByTagName("a")[0];
-            var column = a.href.split("=")[1];
             inspectColumn(column);
         });
-    })
-    
-    // render(html`<strong>Select a column for insights</strong>`, sidepanel);
-    render(html`<${Sidebar} column=null />`, window.sidepanel);
+    });
+    // render(html, sidepanel);
+    window.sidepanel.innerHTML = `<strong>&#11013;&nbsp; Select a column</strong>`;
 });
 
+function query(sql) {
+    var url = base_path + '.json?_shape=array&sql=' + encodeURIComponent(sql);
+    return fetch(url).then(r => r.json());
+}
+
 function inspectColumn(column) {
-    render(html`<${Sidebar} column=${column} />`, window.sidepanel);
+    window.sidepanel.innerHTML = `<strong>${column}</strong>`;
+    var sql = `
+        select
+            max(cast([${column}] as float)) as max,
+            min(cast([${column}] as float)) as min,
+            avg(cast([${column}] as float)) as mean,
+            stdev(cast([${column}] as float)) as stdev
+        from [${table}]
+    `;
+    query(sql).then(rows => {
+        var stats = rows[0];
+        window.sidepanel.innerHTML += `
+        <p><span style="display: block; font-size: 0.65em">Min:</span>${stats.min.toFixed(3)}<br>
+        <span style="display: block; font-size: 0.65em">Max:</span>${stats.max.toFixed(3)}<br>
+        <span style="display: block; font-size: 0.65em">Mean:</span>${stats.mean.toFixed(3)}<br>
+        <span style="display: block; font-size: 0.65em">Stdev:</span>${stats.stdev.toFixed(3)}</p>
+        `;
+        // Outlier cutoff is 3xstdev
+        var cutoff = 3 * stats.stdev;
+        var lower = stats.mean - cutoff;
+        var upper = stats.mean + cutoff;
+        var lower_sql = `
+            select * from [${table}]
+            where cast([${column}] as float) < ${lower}
+        `;
+        var upper_sql = `
+            select * from [${table}]
+            where cast([${column}] as float) > ${upper}
+        `;
+        query(lower_sql).then(rows => {
+            if (rows.length) {
+                var html = `
+                    <p><span style="display: block; font-size: 0.65em">Outliers, low:</span>
+                `;
+                rows.forEach(row => {
+                    // For the moment display first two columns
+                    label_columns.forEach(label_column => {
+                        html += label_column + ": " + row[label_column] + '<br>'
+                    });
+                    html += '<strong style="display: block; border-bottom: 1px solid #ccc">' + column + ": " + row[column] + '</strong>';
+                });
+                var where = `cast([${column}] as float) < ${lower}`;
+                html += `<p><a href="${base_path}/${encodeURIComponent(table)}?_where=${encodeURIComponent(where)}">View these outliers</a></p>`;
+                window.sidepanel.innerHTML += html;
+            }
+        });
+        query(upper_sql).then(rows => {
+            if (rows.length) {
+                var html = `
+                    <p><span style="display: block; font-size: 0.65em">Outliers, high:</span>
+                `;
+                rows.forEach(row => {
+                    // For the moment display first two columns
+                    label_columns.forEach(label_column => {
+                        html += label_column + ": " + row[label_column] + '<br>'
+                    });
+                    html += '<strong style="display: block; border-bottom: 1px solid #ccc">' + column + ": " + row[column] + '</strong>';
+                });
+                var where = `cast([${column}] as float) > ${upper}`;
+                html += `<p><a href="${base_path}/${encodeURIComponent(table)}?_where=${encodeURIComponent(where)}">View these outliers</a></p>`;
+                window.sidepanel.innerHTML += html;
+            }
+        });
+    });
 }
 </script>
 {% endblock %}
