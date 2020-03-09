@@ -6,6 +6,7 @@
 var sidepanel = null;
 var table = "{{ table }}";
 var base_path = "/{{ database|quote_plus }}";
+var table_path = "/{{ database|quote_plus }}/{{ table|quote_plus }}";
 
 var label_columns = [];
 
@@ -40,7 +41,7 @@ window.addEventListener("load", () => {
             // Link column
             return true;
         }
-        var column = a.href.split("=")[1];
+        var column = decodeURIComponent(a.href.split("=")[1].replace(/\+/g, ' '));
         if (column != "rowid" && label_columns.length < 1) {
             label_columns.push(column);
         }
@@ -64,7 +65,8 @@ function inspectColumn(column) {
             max(cast([${column}] as float)) as max,
             min(cast([${column}] as float)) as min,
             avg(cast([${column}] as float)) as mean,
-            stdev(cast([${column}] as float)) as stdev
+            stdev(cast([${column}] as float)) as stdev,
+            count(distinct [${column}]) as uniques
         from [${table}]
     `;
     query(sql).then(rows => {
@@ -73,7 +75,8 @@ function inspectColumn(column) {
         <p><span style="display: block; font-size: 0.65em">Min:</span>${stats.min.toFixed(3)}<br>
         <span style="display: block; font-size: 0.65em">Max:</span>${stats.max.toFixed(3)}<br>
         <span style="display: block; font-size: 0.65em">Mean:</span>${stats.mean.toFixed(3)}<br>
-        <span style="display: block; font-size: 0.65em">Stdev:</span>${stats.stdev.toFixed(3)}</p>
+        <span style="display: block; font-size: 0.65em">Stdev:</span>${stats.stdev.toFixed(3)}<br>
+        <span style="display: block; font-size: 0.65em">Unique values:</span>${stats.uniques}</p>
         `;
         // Outlier cutoff is 3xstdev
         var cutoff = 3 * stats.stdev;
@@ -120,6 +123,58 @@ function inspectColumn(column) {
                 html += `<p><a href="${base_path}/${encodeURIComponent(table)}?_where=${encodeURIComponent(where)}">View these outliers</a></p>`;
                 window.sidepanel.innerHTML += html;
             }
+        });
+        // Find most and least used columns
+        var most_least_sql = `
+            with top_values as (
+                select
+                    'top' as bunch,
+                    [${column}] as value,
+                    count(*) as num
+                from
+                    [${table}]
+                group by
+                    value
+                order by
+                    num desc
+                limit
+                    5
+                ),
+            bottom_values as (
+                select
+                    'bottom' as bunch,
+                    [${column}] as value,
+                    count(*) as num
+                from
+                    [${table}]
+                group by
+                    value
+                order by
+                    num
+                limit
+                    5
+                )
+            select * from top_values
+                union
+            select * from bottom_values
+            order by bunch desc, num desc;
+        `;
+        query(most_least_sql).then(rows => {
+            /* Don't show anything if all numbers are 1 */
+            if (!rows.filter(r => r['num'] > 1).length) {
+                return;
+            }
+            var top = rows.filter(r => r['bunch'] == 'top');
+            var bottom = rows.filter(r => r['bunch'] == 'bottom');
+            var html = `<p><span style="display: block; font-size: 0.65em">Most common:</span>`;
+            top.forEach(row => {
+                html += `<a href="${table_path}?${column}=${encodeURIComponent(row.value)}">${row.value}</a> - ${row.num}<br>`;
+            });
+            html += `<p><span style="display: block; font-size: 0.65em">Least common:</span>`;
+            bottom.forEach(row => {
+                html += `<a href="${table_path}?${column}=${encodeURIComponent(row.value)}">${row.value}</a> - ${row.num}<br>`;
+            });
+            window.sidepanel.innerHTML += html;
         });
     });
 }
