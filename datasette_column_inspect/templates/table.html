@@ -72,8 +72,11 @@ window.addEventListener("load", () => {
             inspectColumn(column);
         });
     });
-    // render(html, sidepanel);
-    window.sidepanel.innerHTML = `<strong>&#11013;&nbsp; Select a column</strong>`;
+    if (window.innerWidth < 576) {
+        window.sidepanel.innerHTML = `<strong>Rotate your phone to landscape</strong> to use this tool`;
+    } else {
+        window.sidepanel.innerHTML = `<strong>&#11013;&nbsp; Select a column</strong>`;
+    }
 });
 
 function query(sql) {
