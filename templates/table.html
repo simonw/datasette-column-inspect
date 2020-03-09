@@ -170,10 +170,17 @@ function inspectColumn(column) {
             top.forEach(row => {
                 html += `<a href="${table_path}?${column}=${encodeURIComponent(row.value)}">${row.value}</a> - ${row.num}<br>`;
             });
-            html += `<p><span style="display: block; font-size: 0.65em">Least common:</span>`;
-            bottom.forEach(row => {
-                html += `<a href="${table_path}?${column}=${encodeURIComponent(row.value)}">${row.value}</a> - ${row.num}<br>`;
-            });
+            /* Only show least common if it's not the same as most common */
+            var top_values = top.map(r => r.value);
+            var bottom_values = bottom.map(r => r.value);
+            top_values.sort();
+            bottom_values.sort();
+            if (JSON.stringify(top_values) != JSON.stringify(bottom_values)) {
+                html += `<p><span style="display: block; font-size: 0.65em">Least common:</span>`;
+                bottom.forEach(row => {
+                    html += `<a href="${table_path}?${column}=${encodeURIComponent(row.value)}">${row.value}</a> - ${row.num}<br>`;
+                });
+            }
             window.sidepanel.innerHTML += html;
         });
     });
