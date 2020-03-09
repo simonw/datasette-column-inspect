@@ -1,0 +1,117 @@
+{% extends "default:table.html" %}
+
+{% block extra_head %}
+<script type="module">
+import { html, Component, render, useState, useEffect } from 'https://unpkg.com/htm/preact/standalone.module.js'
+
+
+const SEARCH = 'https://api.github.com/search/repositories';
+
+
+export default function Sidebar(props) {
+	const [items, setItems] = useState([]);
+
+    if (props.column) {
+        console.log("column: ", props.column)
+        useEffect(() => {
+            fetch(`${SEARCH}?q=${props.column}`)
+                .then(res => res.json())
+                .then(data => setItems((data && data.items) || []));
+        }, []);
+    }
+
+	return (
+		html`<div>
+			<div class="list">
+				${items.map(result => (
+					Result(result)
+				))}
+			</div>
+		</div>`
+	);
+}
+
+const Result = result => (
+	html`<div class="repl-list-item">
+		<div>
+			<a
+				href=${result.html_url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="repl-link"
+			>
+				${result.full_name}
+			</a>
+			${" - "}
+			<strong>${result.stargazers_count}</strong>
+		</div>
+		<p>${result.description}</p>
+	</div>`
+);
+
+
+class App extends Component {
+    addTodo() {
+        const { todos = [] } = this.state;
+        this.setState({ todos: todos.concat(`Item ${todos.length}`) });
+    }
+    render({ page }, { todos = [] }) {
+        return html`
+            <div class="app">
+            <${Header} name="ToDo's (${page})" />
+            <ul>
+                ${todos.map(todo => html`
+                    <li>${todo}</li>
+                `)}
+            </ul>
+            <button onClick=${() => this.addTodo()}>Add Todo</button>
+            <${Footer}>footer content here<//>
+            </div>
+        `;
+    }
+}
+
+const Header = ({ name }) => html`<h1>${name} List</h1>`;
+
+const Footer = props => html`<footer ...${props} />`;
+
+var sidepanel = null;
+
+window.addEventListener("load", () => {
+    var table = document.getElementsByTagName("table")[0];
+    // Wrap table in <div><div>TABLE</div><div>SIDEBAR</div></div>
+    var wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    table.parentNode.insertBefore(wrapper, table);
+    var tableDiv = document.createElement('div');
+    tableDiv.style.flex = '3 0 0';
+    tableDiv.style.overflow = 'auto';
+    window.sidepanel = document.createElement('div');
+    window.sidepanel.style.flex = '1 0 0';
+    window.sidepanel.style.boxShadow = '0 30px 40px rgba(0,0,0,.2)';
+    window.sidepanel.style.padding = '1em';
+    window.sidepanel.style.border = '2px solid #ccc';
+    wrapper.appendChild(tableDiv);
+    wrapper.appendChild(window.sidepanel);
+    tableDiv.appendChild(table);
+
+    // Make the ths clickable
+    Array.from(table.getElementsByTagName("th")).forEach(th => {
+        th.style.backgroundColor = 'orange';
+        th.style.cursor = 'pointer';
+        th.addEventListener("click", () => {
+            var a = th.getElementsByTagName("a")[0];
+            var column = a.href.split("=")[1];
+            inspectColumn(column);
+        });
+    })
+    
+    // render(html`<strong>Select a column for insights</strong>`, sidepanel);
+    render(html`<${Sidebar} column=null />`, window.sidepanel);
+});
+
+function inspectColumn(column) {
+    render(html`<${Sidebar} column=${column} />`, window.sidepanel);
+}
+</script>
+{% endblock %}
