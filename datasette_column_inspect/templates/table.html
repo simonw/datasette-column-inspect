@@ -17,6 +17,17 @@ var info_svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" he
   </g>
 </svg>`;
 
+
+function parseQuery(qs) {
+    var query = {};
+    var pairs = qs.split('&');
+    pairs.forEach(pair => {
+        var bits = pair.split('=');
+        query[decodeURIComponent(bits[0])] = decodeURIComponent(bits[1] || '');
+    });
+    return query;
+}
+
 window.addEventListener("load", () => {
     var table = document.getElementsByTagName("table")[0];
     // Wrap table in <div><div>TABLE</div><div>SIDEBAR</div></div>
@@ -46,7 +57,8 @@ window.addEventListener("load", () => {
             // Link column
             return true;
         }
-        var column = decodeURIComponent(a.href.split("=")[1].replace(/\+/g, ' '));
+        var parsed = parseQuery(a.href.split("?")[1]);
+        var column = parsed._sort || parsed._sort_desc;
         if (column != "rowid" && label_columns.length < 1) {
             label_columns.push(column);
         }
